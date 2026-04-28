@@ -11,7 +11,7 @@ import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 import ru.abstractmenus.api.*;
 import ru.abstractmenus.api.AbstractMenusApi;
-import ru.abstractmenus.api.AbstractMenusApiImpl;
+import ru.abstractmenus.impl.AbstractMenusApiImpl;
 import ru.abstractmenus.api.inventory.Menu;
 import ru.abstractmenus.api.text.Colors;
 import ru.abstractmenus.api.variables.VariableManager;
@@ -68,6 +68,12 @@ public final class AbstractMenus extends JavaPlugin {
     private AbstractMenusApi api;
     private AddonManager addonManager;
     private MainConfig mainConfig;
+    /**
+     * The plugin's own dogfood {@link MenuExtension}. Held as a field so
+     * {@code /am addons list} can render it as the {@code [built-in]} entry
+     * and tell it apart from operator-installed Path 1 / Path 2 addons.
+     */
+    private MenuExtension core;
 
     @Getter
     @Setter
@@ -146,7 +152,7 @@ public final class AbstractMenus extends JavaPlugin {
 
             // Core extension — dogfood: the plugin registers its own types through
             // the same SPI external addons will use.
-            MenuExtension core = new CoreExtension();
+            core = new CoreExtension();
             core.onLoad(api);
             core.onEnable(api);
 
@@ -175,6 +181,13 @@ public final class AbstractMenus extends JavaPlugin {
         } catch (Exception e) {
             Logger.severe("Cannot enable plugin: " + e.getMessage());
             e.printStackTrace();
+            // disablePlugin() from inside onEnable is re-entrant: Bukkit calls
+            // our onDisable while we are still in this stack frame. Every
+            // singleton accessed in onDisable is null-guarded so a partial
+            // init does not NPE on the way out. Rethrowing instead would
+            // skip our cleanup (service-manager registrations, listeners,
+            // database connections) since Bukkit does not call onDisable
+            // for plugins whose onEnable threw.
             disablePlugin();
         }
     }
@@ -207,7 +220,9 @@ public final class AbstractMenus extends JavaPlugin {
         if (BungeeManager.instance() != null)
             BungeeManager.instance().stopOnlineTimer();
 
-        VariableManagerImpl.instance().shutdown();
+        if (VariableManagerImpl.instance() != null) {
+            VariableManagerImpl.instance().shutdown();
+        }
         Events.unregisterAll();
 
         getServer().getMessenger().unregisterIncomingPluginChannel(this, "BungeeCord");
@@ -266,7 +281,12 @@ public final class AbstractMenus extends JavaPlugin {
         return instance;
     }
 
-    // from SkinRestorer
+    // from SkinRestorer.
+    //
+    // YamlConfiguration.loadConfiguration below reads spigot.yml / paper.yml
+    // synchronously on the main thread. These files are <10 KB on a real
+    // server and the call only fires once, during onEnable, before any
+    // gameplay can be affected. Acceptable startup-only IO.
     public boolean determineProxy() {
         Path spigotFile = Paths.get("spigot.yml");
         Path paperFile = Paths.get("paper.yml");

@@ -25,8 +25,8 @@ public class ActionMoneyGive implements Action {
     @Override
     public void activate(Player player, Menu menu, Item clickedItem) {
         EconomyHandler eco = provider != null
-                ? AbstractMenusApi.get().providers().economy(provider)
-                : AbstractMenusApi.get().providers().economy();
+                ? AbstractMenusApi.get().providers().economy().resolve(provider)
+                : AbstractMenusApi.get().providers().economy().resolve();
         if (eco == null) {
             return;
         }
@@ -37,30 +37,8 @@ public class ActionMoneyGive implements Action {
 
         @Override
         public ActionMoneyGive deserialize(Class type, ConfigNode node) throws NodeSerializeException {
-            TypeDouble money;
-            String provider = null;
-
-            if (node.isMap()) {
-                money = node.node("amount").getValue(TypeDouble.class);
-                provider = node.node("provider").getString(null);
-            } else {
-                money = node.getValue(TypeDouble.class);
-            }
-
-            if (provider != null) {
-                if (!AbstractMenusApi.get().providers().hasEconomy(provider)) {
-                    StringBuilder known = new StringBuilder();
-                    for (EconomyHandler h : AbstractMenusApi.get().providers().allEconomy()) {
-                        if (known.length() > 0) known.append(", ");
-                        known.append(h.getClass().getSimpleName());
-                    }
-                    throw new NodeSerializeException(node,
-                            "Unknown economy provider '" + provider + "'. Registered: ["
-                                    + known + "]. Omit the 'provider' field for default selection.");
-                }
-            }
-
-            return new ActionMoneyGive(money, provider);
+            MoneyAmountSpec spec = MoneyAmountSpec.parse(node);
+            return new ActionMoneyGive(spec.amount, spec.provider);
         }
 
     }

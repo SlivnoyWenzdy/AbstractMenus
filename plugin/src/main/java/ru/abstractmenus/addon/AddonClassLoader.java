@@ -21,9 +21,27 @@ public final class AddonClassLoader extends URLClassLoader {
     static final String[] PARENT_FIRST_PREFIXES = {
             "ru.abstractmenus.api.",
             "org.bukkit.",
+            "org.spigotmc.",
             "io.papermc.",
             "com.destroystokyo.paper.",
             "net.kyori.adventure.",
+            // Paperweight-userdev exposes remapped NMS / Mojang internals to
+            // the plugin classloader. Keep them parent-first so an addon
+            // cannot ship its own copy of, say, net.minecraft.nbt.CompoundTag
+            // and have it hide the real one for any code that crosses the
+            // addon boundary.
+            "net.minecraft.",
+            "com.mojang.",
+            // Server-bundled libraries. If an addon ships its own copy with
+            // a different version or shaded-but-not-relocated, the same
+            // class loaded by two classloaders is not the same class -
+            // ClassCastException at the first hand-off. Force parent-first
+            // so everyone uses the server's copy.
+            "ca.spottedleaf.",       // Paper concurrent utilities
+            "io.netty.",             // Netty (Paper bundles)
+            "it.unimi.dsi.fastutil.",
+            "com.google.gson.",
+            "com.google.common.",    // Guava
             "java.",
             "javax.",
             "jdk.",

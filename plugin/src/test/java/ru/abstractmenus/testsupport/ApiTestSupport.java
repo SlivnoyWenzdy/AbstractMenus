@@ -9,10 +9,10 @@ import ru.abstractmenus.api.Activator;
 import ru.abstractmenus.api.Catalog;
 import ru.abstractmenus.api.MenuExtension;
 import ru.abstractmenus.api.ProviderRegistry;
-import ru.abstractmenus.api.ProviderRegistryImpl;
+import ru.abstractmenus.impl.ProviderRegistryImpl;
 import ru.abstractmenus.api.Rule;
 import ru.abstractmenus.api.TypeRegistry;
-import ru.abstractmenus.api.TypeRegistryImpl;
+import ru.abstractmenus.impl.TypeRegistryImpl;
 import ru.abstractmenus.api.handler.PlaceholderHandler;
 import ru.abstractmenus.api.inventory.ItemProperty;
 import ru.abstractmenus.api.inventory.Menu;
@@ -41,7 +41,7 @@ import static org.mockito.Mockito.when;
  * @BeforeAll
  * static void setUp() {
  *     support = ApiTestSupport.install();
- *     support.providers().registerPlaceholders("test", myHandler, 100, support.owner());
+ *     support.providers().placeholders().register("test", myHandler, 100, support.owner());
  * }
  *
  * @AfterAll
@@ -78,7 +78,7 @@ public final class ApiTestSupport implements AutoCloseable {
 
     /** Shortcut: register {@code handler} as the test placeholder provider. */
     public void installPlaceholderHandler(PlaceholderHandler handler) {
-        api.providers().registerPlaceholders("test", handler, 100, owner);
+        api.providers().placeholders().register("test", handler, 100, owner);
     }
 
     @Override

@@ -39,13 +39,18 @@ public final class Logger {
      * Install the backing JUL logger. Called once by AbstractMenus core during
      * plugin {@code onEnable}.
      *
-     * <p>Addons should not call this &mdash; replacing the logger would
-     * redirect <em>all</em> subsequent log output (including core's) away from
-     * the plugin's channel.
+     * <p>Set-once: subsequent calls are silently skipped so an addon cannot
+     * replace the logger to silence or capture core's output. The skip
+     * (rather than throw) keeps Bukkit {@code /reload} working - on reload
+     * core's {@code onEnable} runs again and re-invokes this method, which
+     * is now a no-op.
      *
      * @param log the JUL logger to delegate to; never {@code null}
+     * @throws NullPointerException if {@code log} is null
      */
     public static void set(java.util.logging.Logger log){
+        if (log == null) throw new NullPointerException("logger");
+        if (logger != null) return;
         logger = log;
     }
 

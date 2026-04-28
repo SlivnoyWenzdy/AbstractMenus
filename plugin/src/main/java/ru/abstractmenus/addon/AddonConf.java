@@ -7,6 +7,7 @@ import ru.abstractmenus.hocon.api.source.ConfigSources;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Immutable metadata parsed from an addon's {@code addon.conf} file. Use
@@ -26,6 +27,15 @@ public record AddonConf(
         List<String> pluginDependencies,
         List<String> pluginSoftDependencies
 ) {
+
+    /**
+     * Loose Java class-name pattern: identifier chars + dots, must start
+     * with a letter / underscore / dollar. Catches obvious typos in
+     * addon.conf's {@code main} field with a clear error before the
+     * cleaner-but-deeper {@code ClassNotFoundException} from loadClass.
+     */
+    private static final Pattern CLASS_NAME =
+            Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*");
 
     /**
      * Parse HOCON text into an AddonConf.
@@ -48,15 +58,19 @@ public record AddonConf(
             throw new AddonConfParseException("Failed to parse addon.conf: " + e.getMessage(), e);
         }
 
-        String name        = requireString(root, "name");
-        String version     = requireString(root, "version");
-        String main        = requireString(root, "main");
+        String name = requireString(root, "name");
+        String version = requireString(root, "version");
+        String main = requireString(root, "main");
+        if (!CLASS_NAME.matcher(main).matches()) {
+            throw new AddonConfParseException(
+                    "Field 'main' is not a legal Java class name: '" + main + "'");
+        }
 
-        List<String> authors               = optionalStringList(root, "authors");
-        String description                 = root.node("description").getString("");
-        String targetApiVersion            = optionalString(root, "targetApiVersion");
-        List<String> addonDependencies     = optionalStringList(root, "addonDependencies");
-        List<String> pluginDependencies    = optionalStringList(root, "pluginDependencies");
+        List<String> authors = optionalStringList(root, "authors");
+        String description = root.node("description").getString("");
+        String targetApiVersion = optionalString(root, "targetApiVersion");
+        List<String> addonDependencies = optionalStringList(root, "addonDependencies");
+        List<String> pluginDependencies = optionalStringList(root, "pluginDependencies");
         List<String> pluginSoftDependencies = optionalStringList(root, "pluginSoftDependencies");
 
         return new AddonConf(
