@@ -1,154 +1,96 @@
-import proguard.gradle.ProGuardTask
-
-buildscript {
-    repositories {
-        mavenCentral()
-        mavenLocal()
-    }
-    dependencies {
-        classpath 'com.guardsquare:proguard-gradle:7.9.1'
-    }
-}
+// Common configuration applied to every subproject.
+// Subproject-specific plugins (java-library, shadow, paperweight) stay in subprojects.
 
 plugins {
-    id 'java'
-    id 'com.gradleup.shadow' version '9.4.1'
-    id("io.papermc.paperweight.userdev") version "2.0.0-beta.21"
+    // Root needs the base lifecycle ('build', 'assemble', 'clean') so we
+    // can hook the dist aggregator below into it.
+    id 'base'
 }
 
-java {
-    sourceCompatibility = "21"
-    targetCompatibility = "21"
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+allprojects {
+    group   = 'ru.abstractmenus'
+    version = '2.0.0-alpha'
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven { url 'https://repo.papermc.io/repository/maven-public/' }
+        maven { url 'https://jitpack.io' }
     }
 }
 
+subprojects {
+    apply plugin: 'java'
 
-group 'ru.abstractmenus'
-version '1.18.0'
-
-repositories {
-    mavenLocal()
-    mavenCentral()
-    maven { url 'https://repo.papermc.io/repository/maven-public/' }
-    maven { url 'https://jitpack.io' }
-    maven { url 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
-    maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
-    maven { url 'https://maven.enginehub.org/repo/' }
-    maven { url 'https://repo.extendedclip.com/content/repositories/placeholderapi/' }
-    maven { url 'https://mvn.lumine.io/repository/maven-public/' }
-    maven { url 'https://repo.codemc.org/repository/maven-public/'
-        metadataSources {
-            artifact()
+    java {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
         }
     }
-    maven {
-        url 'https://repo.codemc.org/repository/maven-snapshots/'
-        metadataSources {
-            artifact()
-        }
-    }
-    maven {
-        url 'https://repo.codemc.org/repository/maven-releases/'
-        metadataSources {
-            artifact()
-        }
+
+    test {
+        useJUnitPlatform()
     }
 }
 
-dependencies {
-    compileOnly 'org.projectlombok:lombok:1.18.44'
-    annotationProcessor 'org.projectlombok:lombok:1.18.44'
+// -----------------------------------------------------------------------
+//  dist - aggregate every shipping artifact into <root>/build/dist/
+//
+//  Mirrors the user-facing files in one place so a server admin (or CI)
+//  can grab everything with a single cp / scp:
+//
+//      build/dist/
+//        AbstractMenus-<ver>.jar              (plugin, fat shadow)
+//        AbstractMenus-api-<ver>.jar          (api binary, Maven coord
+//                                              ru.abstractmenus:api:<ver>)
+//        AbstractMenus-api-<ver>-sources.jar
+//        AbstractMenus-api-<ver>-javadoc.jar
+//
+//  The per-module build/libs/ directories are unchanged - existing CI
+//  paths and Gradle's incremental cache keep working.
+//
+//  ./gradlew build automatically runs dist as a finalizer, so a normal
+//  build leaves everything in build/dist/. Run ./gradlew dist alone if
+//  you only need to refresh the aggregate (skips tests).
+// -----------------------------------------------------------------------
+tasks.register('dist', Copy) {
+    description = 'Aggregates shipping artifacts into build/dist/.'
+    group = 'distribution'
 
-    paperweight.paperDevBundle("1.21.11-R0.1-SNAPSHOT")
-    implementation 'com.github.AbstractMenus:api:995cd8c9a9'
-    implementation 'com.fathzer:javaluator:3.0.6'
-    implementation 'net.kyori:adventure-platform-bukkit:4.4.1'
-    implementation 'net.kyori:adventure-text-minimessage:4.26.1'
-    implementation "com.github.technicallycoded:FoliaLib:0.4.4"
+    def pluginShadow = project(':plugin').tasks.named('shadowJar')
+    def apiJar       = project(':api').tasks.named('jar')
+    def apiSources   = project(':api').tasks.named('sourcesJar')
+    def apiJavadoc   = project(':api').tasks.named('javadocJar')
 
-//    shadow files('libs/spigot-1.14.4.jar')
-    shadow files('libs/MMOItems-6.5.4.jar')
-    shadow files('libs/citizens-2.0.jar')
+    dependsOn pluginShadow, apiJar, apiSources, apiJavadoc
 
-    shadow ('de.tr7zw:item-nbt-api-plugin:2.15.7') {
-        exclude group: 'org.bstats', module: 'bstats-bukkit'
-    }
-    shadow ('com.arcaniax:HeadDatabase-API:1.3.2'){
-        exclude group: 'org.bstats', module: 'bstats-bukkit'
-    }
-    shadow ('com.github.MilkBowl:VaultAPI:1.7.1'){
-        exclude group: 'org.bstats', module: 'bstats-bukkit'
-        exclude group: 'org.bukkit'
-    }
-    shadow ('net.luckperms:api:5.5'){
-        exclude group: 'org.bstats', module: 'bstats-bukkit'
-    }
-    shadow ('com.sk89q.worldguard:worldguard-bukkit:7.0.0'){
-        exclude group: 'org.bstats', module: 'bstats-bukkit'
-        exclude group: 'org.bukkit'
-        exclude group: 'io.papermc.paper'
-    }
+    from(pluginShadow.flatMap { it.archiveFile })
+    from(apiJar.flatMap       { it.archiveFile })
+    from(apiSources.flatMap   { it.archiveFile })
+    from(apiJavadoc.flatMap   { it.archiveFile })
 
-    compileOnly 'me.clip:placeholderapi:2.12.2'
-
-    shadow ('io.lumine:MythicLib:1.0.12-SNAPSHOT'){
-        exclude group: 'org.bstats', module: 'bstats-bukkit'
-    }
-    shadow ('com.github.LoneDev6:api-itemsadder:3.6.1'){
-        exclude group: 'org.bstats', module: 'bstats-bukkit'
-    }
-    shadow ('net.skinsrestorer:skinsrestorer-api:15.10.0'){
-        exclude group: 'org.bstats', module: 'bstats-bukkit'
-    }
-
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.14.3'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.14.3'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-
-    // MockBukkit — in-memory Paper API mock for integration tests
-    testImplementation 'org.mockbukkit.mockbukkit:mockbukkit-v1.21:4.108.0'
-
-    // Mockito — isolated behavior tests against Bukkit API surface
-    testImplementation 'org.mockito:mockito-core:5.15.2'
-    testImplementation 'org.mockito:mockito-junit-jupiter:5.15.2'
-
-    testImplementation 'org.openjdk.jmh:jmh-core:1.37'
-    testAnnotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess:1.37'
-
-    testCompileOnly 'org.projectlombok:lombok:1.18.44'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.44'
+    into layout.buildDirectory.dir('dist')
 }
 
-processResources {
-    filesMatching("plugin.yml") {
-        expand([version: project.version])
-    }
-}
+// Hook dist into every common dev-cycle entry point so the aggregate in
+// build/dist/ is always fresh, regardless of which command the dev ran.
+//
+//   ./gradlew shadowJar  -> finalizes :dist (fast loop "fix -> server")
+//   ./gradlew assemble   -> finalizes :dist (all artifacts, no tests)
+//   ./gradlew build      -> finalizes :dist (artifacts + tests)
+//   ./gradlew dist       -> dist itself
+//
+// finalizedBy is correct here (vs dependsOn) because we want dist to run
+// AFTER the upstream task succeeds, not be pulled in as its dependency.
+tasks.named('build').configure { finalizedBy('dist') }
+tasks.named('assemble').configure { finalizedBy('dist') }
 
-shadowJar {
-    relocate "com.tcoded.folialib", "ru.abstractmenus.lib.folialib"
-    dependencies {
-        exclude dependency('org.inventivetalent.spiget-update:bukkit')
-    }
-
-    archiveFileName.set("${project.name}-${project.version}.jar")
-}
-
-test {
-    useJUnitPlatform()
-    exclude 'ru/abstractmenus/bench/**'
-}
-
-tasks.register('jmh', JavaExec) {
-    description = 'Run JMH benchmarks'
-    group = 'benchmark'
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'ru.abstractmenus.bench.RunBenchmarks'
-
-    def benchFilter = project.findProperty('bench') ?: ''
-    if (benchFilter) {
-        args = ["ru.abstractmenus.bench.*${benchFilter}*"]
+// :plugin:shadowJar is the hot-path command during plugin development;
+// hook it directly so the dev-loop jar lands in build/dist/ too.
+project(':plugin').afterEvaluate {
+    project(':plugin').tasks.named('shadowJar').configure {
+        finalizedBy(':dist')
     }
 }

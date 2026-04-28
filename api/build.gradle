@@ -1,0 +1,77 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+// Local file in api/build/libs/ is AbstractMenus-api-<ver>.jar so
+// it visually groups with AbstractMenus-<ver>.jar from :plugin and an
+// op who copies both off CI artifacts can tell at a glance both are AM.
+//
+// Maven publish artifactId stays 'api' (project.name) so the coord
+// 'ru.abstractmenus:api:<ver>' is unchanged for consumers - Gradle's
+// maven-publish renames files to <artifactId>-<version>.jar inside the
+// repository regardless of what archivesName is on the local jar task.
+base {
+    archivesName = 'AbstractMenus-api'
+}
+
+repositories {
+    // root already supplies papermc + jitpack + mavenCentral + mavenLocal
+}
+
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT'
+    api 'com.github.AbstractMenus:hocon:1.0.6'
+
+    compileOnly 'org.projectlombok:lombok:1.18.44'
+    annotationProcessor 'org.projectlombok:lombok:1.18.44'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.14.3'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.14.3'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+javadoc {
+    title = "AbstractMenus ${project.version} API"
+    options.addStringOption('Xdoclint:none', '-quiet')
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+            // artifactId defaults to project.name == 'api'
+            // → Maven coord: ru.abstractmenus:api:<version>
+
+            pom {
+                name = 'AbstractMenus API'
+                description = 'Public API for the AbstractMenus Minecraft plugin (Paper/Folia).'
+                url = 'https://github.com/AbstractMenus/minecraft-plugin'
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://github.com/AbstractMenus/minecraft-plugin/blob/master/LICENSE'
+                    }
+                }
+                scm {
+                    url = 'https://github.com/AbstractMenus/minecraft-plugin'
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = 'GitHubPackages'
+            url  = uri('https://maven.pkg.github.com/AbstractMenus/minecraft-plugin')
+            credentials {
+                username = System.getenv('GITHUB_ACTOR')
+                password = System.getenv('GITHUB_TOKEN')
+            }
+        }
+    }
+}
